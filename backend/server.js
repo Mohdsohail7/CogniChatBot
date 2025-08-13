@@ -7,6 +7,15 @@ const { connectDB, sequelize } = require("./config/config");
 app.use(cors());
 app.use(express.json());
 
+
+// routes mounte
+const authRoutes = require("./routes/authRoutes");
+const chatRoutes = require("./routes/chatRoutes");
+
+// routes unmountes
+app.use("/api/auth", authRoutes);
+app.use("/api/chats", chatRoutes);
+
 app.get("/", (req, res) => {
     res.send("CogniChatBot backend is Running...");
 })
