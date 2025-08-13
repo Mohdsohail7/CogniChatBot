@@ -1,4 +1,5 @@
 require("dotenv").config();
+console.log(process.env.DB_HOST);
 const sq = require("sequelize");
 
 const sequelize = new sq.Sequelize(
