@@ -1,8 +1,13 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef,useMemo } from "react";
 import { Plus, Send, StopCircle, Menu, X } from "lucide-react";
+import { chatsList, createChat, getChatMessages, sendMessageStream, stopStreaming } from "../utili/api";
+
+
 
 export default function Chat() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [chats, setChats] = useState([]);
+  const [activeChatId, setActiveChatId] = useState(null);
   const [messages, setMessages] = useState([
     { role: "assistant", text: "Hello! How can I help you today?" },
   ]);
@@ -14,52 +19,134 @@ export default function Chat() {
   ]);
   const messagesEndRef = useRef(null);
   const streamRef = useRef(null);
+  const abortRef = useRef(null);
 
+  const activeChat = useMemo(() => chats.find((chat) => chat.id === activeChatId) || null, [chats, activeChatId]);
+
+
+// Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
-    setLoading(true);
-
-    setMessages((prev) => [...prev, { role: "user", text: input }]);
-    const reply = "Sure! Here’s a sample response generated token by token...";
-    let idx = 0;
-
-    streamRef.current = setInterval(() => {
-      setMessages((prev) => {
-        const last = prev[prev.length - 1];
-        if (last.role === "assistant") {
-          const updated = [...prev];
-          updated[updated.length - 1].text += reply[idx];
-          return updated;
-        } else {
-          return [...prev, { role: "assistant", text: reply[idx] }];
-        }
-      });
-      idx++;
-      if (idx >= reply.length) {
-        clearInterval(streamRef.current);
-        setLoading(false);
+  // Load chats on mount; create one if none
+  useEffect(() => {
+    (async () => {
+      const data = await chatsList();
+      if (!data?.length) {
+        const created = await createChat("New Chat");
+        setChats([created]);
+        setActiveChatId(created.id);
+        setMessages([
+          { role: "assistant", content: "New chat started. Ask me anything!" },
+        ]);
+      } else {
+        setChats(data);
+        setActiveChatId(data[0].id);
       }
-    }, 40);
+    })();
+  }, []);
 
+  // load messages when active chat changes
+  useEffect(() => {
+    if (!activeChatId) return;
+    (async () => {
+      const msgs = await getChatMessages(activeChatId);
+      // backend roles: "user" / "bot"
+      const mapped = msgs.map((msg) => ({
+        role: msg.role === "bot" ? "assistant" : msg.role,
+        content: msg.content,
+        createdAt: msg.createdAt,
+      }));
+      setMessages(mapped);
+    })();
+  }, [activeChatId]);
+
+
+
+  const handleSend = async () => {
+    if (!input.trim() || !activeChatId || loading) return;
+
+    // Optimistic user message
+    const userText = input;
     setInput("");
+    setMessages((prev) => [...prev, { role: "user", content: userText }]);
+
+    // Local title update
+    if (activeChat?.title === "New Chat") {
+      const newTitle = autoNameFrom(userText);
+      setChats((prev) =>
+        prev.map((c) => (c.id === activeChatId ? { ...c, title: newTitle } : c))
+      );
+    }
+
+    // Prepare assistant placeholder
+    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+
+    // Start streaming
+    setLoading(true);
+    abortRef.current = new AbortController();
+
+    try {
+      await sendMessageStream({
+        chatId: activeChatId,
+        content: userText,
+        signal: abortRef.current.signal,
+        onToken: (chunk) => {
+          setMessages((prev) => {
+            const last = prev[prev.length - 1];
+            if (!last || last.role !== "assistant") return prev;
+            const updated = [...prev];
+            updated[updated.length - 1] = {
+              ...last,
+              content: last.content + chunk,
+            };
+            return updated;
+          });
+        },
+      });
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        setMessages((p) => [
+          ...p,
+          { role: "assistant", content: "⚠️ Stream failed." },
+        ]);
+      }
+    } finally {
+      setLoading(false);
+      abortRef.current = null;
+    }
   };
 
-  const handleStop = () => {
-    setLoading(false);
-    if (streamRef.current) clearInterval(streamRef.current);
+
+  const handleStop = async () => {
+    try {
+      abortRef.current?.abort();
+      await stopStreaming(activeChatId);
+    } finally {
+      setLoading(false);
+      abortRef.current = null;
+    }
   };
 
-  const handleNewChat = () => {
-    const newId = sessions.length + 1;
-    setSessions([
-      { id: newId, title: `Chat ${newId}`, date: new Date().toLocaleDateString() },
-      ...sessions,
+  const handleNewChat = async () => {
+    // close streaming if any 
+    if (loading) await handleStop();
+
+    const created = await createChat("New Chat");
+    setChats((prev) => [created, ...prev]);
+    setActiveChatId(created.id);
+    setMessages([
+      { role: "assistant", content: "New chat started. Ask me anything!" },
     ]);
-    setMessages([{ role: "assistant", text: "New chat started. Ask me anything!" }]);
+    setSidebarOpen(false); // collapse on mobile
+  };
+
+   const autoNameFrom = (text) => {
+    const t = text.trim().replace(/\s+/g, " ");
+    if (!t) return "New Chat";
+    const words = t.split(" ").slice(0, 6).join(" ");
+    return words.charAt(0).toUpperCase() + words.slice(1);
   };
 
   return (
@@ -88,14 +175,16 @@ export default function Chat() {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {sessions.map((s) => (
+          {chats.map((chat) => (
             <div
-              key={s.id}
-              className="p-3 rounded-lg hover:bg-white/20 cursor-pointer text-white"
-              onClick={() => setMessages([{ role: "assistant", text: `Loaded ${s.title}` }])}
+              key={chat.id}
+              className={`p-3 rounded-lg hover:bg-white/20 cursor-pointer text-white ${
+                chat.id === activeChatId ? "bg-white/20" : ""
+              }`}
+              onClick={() => setActiveChatId(chat.id)}
             >
-              <p className="font-medium">{s.title}</p>
-              <span className="text-sm text-gray-200">{s.date}</span>
+              <p className="font-medium">{chat.title}</p>
+              <span className="text-sm text-gray-200">{new Date(chat.createdAt).toLocaleDateString()}</span>
             </div>
           ))}
         </div>
@@ -137,7 +226,7 @@ export default function Chat() {
                   msg.role === "user" ? "bg-blue-600 text-white" : "bg-white text-gray-800"
                 }`}
               >
-                {msg.text}
+                {msg.content}
               </div>
             </div>
           ))}
