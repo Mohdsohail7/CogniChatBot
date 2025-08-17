@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { registerUser } from "../utili/api";
+import { useGoogleLogin } from "@react-oauth/google";
+import axiosInstance from "../utili/axios";
 
 export default function Register() {
   const [form, setForm] = useState({ name: "", email: "", password: ""});
@@ -8,9 +10,6 @@ export default function Register() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  const handleChange = (e) => {
-    setForm({...form, [e.target.type]: e.target.value });
-  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -26,6 +25,31 @@ export default function Register() {
       setLoading(false);
     }
   };
+
+  const handleGoogleOAuthLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      try {
+        
+        // Send Google access token to backend
+        const result = await axiosInstance.post(`${process.env.REACT_APP_BASE_URL}/api/auth/google`, {
+          access_token: tokenResponse.access_token
+        });
+
+        // save token and user
+        localStorage.setItem("token", result.data.token);
+        localStorage.setItem("user", JSON.stringify(result.data.user));
+
+        navigate("/chat") // redirect after register
+      } catch (err) {
+        setError("Google registration failed. Please try again.");
+        console.error("Google registration failed:", err);
+      }
+    },
+    onError: (err) => {
+      setError("Google registration error. Please try again.");
+      console.error("Google registration error", err);
+    },
+  });
 
 
 
@@ -75,7 +99,9 @@ export default function Register() {
         </p>
 
         <div className="mt-6">
-          <button className="w-full py-3 rounded-lg bg-red-500 text-white font-semibold shadow-md hover:bg-red-400 transition duration-300">
+          <button 
+          onClick={() => handleGoogleOAuthLogin}
+          className="w-full py-3 rounded-lg bg-red-500 text-white font-semibold shadow-md hover:bg-red-400 transition duration-300">
             Sign up with Google
           </button>
         </div>

@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { loginUser } from "../utili/api";
+import axiosInstance from "../utili/axios";
+import { useGoogleLogin } from "@react-oauth/google";
 
 export default function Login() {
   const [form, setForm] = useState({ email: "", password: ""});
@@ -16,7 +18,7 @@ export default function Login() {
     try {
       const { token, user } = await loginUser(form);
       localStorage.setItem("token", token);
-      localStorage.getItem("user", JSON.stringify(user));
+      localStorage.setItem("user", JSON.stringify(user));
       navigate("/chat") // redirect after login
     } catch (err) {
       setError(err.response?.data?.message || "Login failed.");
@@ -25,6 +27,31 @@ export default function Login() {
     }
   };
 
+  // login with google
+  const handleGoogleOAuthLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      try {
+        
+        // Send Google access token to backend
+        const result = await axiosInstance.post(`${process.env.REACT_APP_BASE_URL}/api/auth/google`, {
+          access_token: tokenResponse.access_token
+        });
+
+        // save token and user
+        localStorage.setItem("token", result.data.token);
+        localStorage.setItem("user", JSON.stringify(result.data.user));
+
+        navigate("/chat") // redirect after login
+      } catch (err) {
+        setError("Google login failed. Please try again.");
+        console.error("Google login failed:", err);
+      }
+    },
+    onError: (err) => {
+      setError("Google login error. Please try again.");
+      console.error("Google login error", err);
+    },
+  });
 
 
   return (
@@ -64,7 +91,9 @@ export default function Login() {
         </p>
 
         <div className="mt-6">
-          <button className="w-full py-3 rounded-lg bg-red-500 text-white font-semibold shadow-md hover:bg-red-400 transition duration-300">
+          <button 
+          onClick={() => handleGoogleOAuthLogin}
+          className="w-full py-3 rounded-lg bg-red-500 text-white font-semibold shadow-md hover:bg-red-400 transition duration-300">
             Sign in with Google
           </button>
         </div>
