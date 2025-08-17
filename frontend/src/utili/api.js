@@ -52,3 +52,21 @@ export async function stopStreaming(chatId) {
         // swallow — if no active process, backend may 400
     }
 }
+
+// Register
+export async function registerUser(data) {
+    const result = await axiosInstance.post("/auth/register", data);
+    return result.data;
+}
+
+// Login
+export async function loginUser(data) {
+    const result = await axiosInstance.post("/auth/login", data);
+    return result.data;
+}
+
+// Google Oauth
+export async function googleOAuth(access_token) {
+    const result = await axiosInstance.post("/google", { access_token });
+    return result.data;
+}
