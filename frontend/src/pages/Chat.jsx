@@ -1,30 +1,31 @@
-import { useState, useEffect, useRef,useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Plus, Send, StopCircle, Menu, X } from "lucide-react";
-import { chatsList, createChat, getChatMessages, sendMessageStream, stopStreaming } from "../utili/api";
-
-
+import {
+  chatsList,
+  createChat,
+  getChatMessages,
+  sendMessageStream,
+  stopStreaming,
+} from "../utils/api";
 
 export default function Chat() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chats, setChats] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
   const [messages, setMessages] = useState([
-    { role: "assistant", text: "Hello! How can I help you today?" },
+    { role: "assistant", content: "Hello! How can I help you today?" },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [sessions, setSessions] = useState([
-    { id: 1, title: "Marketing Plan", date: "Aug 10" },
-    { id: 2, title: "JavaScript Help", date: "Aug 12" },
-  ]);
   const messagesEndRef = useRef(null);
-  const streamRef = useRef(null);
   const abortRef = useRef(null);
 
-  const activeChat = useMemo(() => chats.find((chat) => chat.id === activeChatId) || null, [chats, activeChatId]);
+  const activeChat = useMemo(
+    () => chats.find((chat) => chat.id === activeChatId) || null,
+    [chats, activeChatId]
+  );
 
-
-// Scroll to bottom when messages change
+  // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -62,10 +63,16 @@ export default function Chat() {
     })();
   }, [activeChatId]);
 
-
-
   const handleSend = async () => {
-    if (!input.trim() || !activeChatId || loading) return;
+    if (!input.trim() || loading) return;
+
+    let chatId = activeChatId;
+    if (!chatId) {
+      const created = await createChat("New Chat");
+      setChats((prev) => [created, ...prev]);
+      setActiveChatId(created.id);
+      chatId = created.id;
+    }
 
     // Optimistic user message
     const userText = input;
@@ -109,7 +116,7 @@ export default function Chat() {
       if (err.name !== "AbortError") {
         setMessages((p) => [
           ...p,
-          { role: "assistant", content: "⚠️ Stream failed." },
+          { role: "assistant", content: "Stream failed.", isError: true },
         ]);
       }
     } finally {
@@ -117,7 +124,6 @@ export default function Chat() {
       abortRef.current = null;
     }
   };
-
 
   const handleStop = async () => {
     try {
@@ -130,7 +136,7 @@ export default function Chat() {
   };
 
   const handleNewChat = async () => {
-    // close streaming if any 
+    // close streaming if any
     if (loading) await handleStop();
 
     const created = await createChat("New Chat");
@@ -142,7 +148,7 @@ export default function Chat() {
     setSidebarOpen(false); // collapse on mobile
   };
 
-   const autoNameFrom = (text) => {
+  const autoNameFrom = (text) => {
     const t = text.trim().replace(/\s+/g, " ");
     if (!t) return "New Chat";
     const words = t.split(" ").slice(0, 6).join(" ");
@@ -160,9 +166,11 @@ export default function Chat() {
           h-[calc(100vh-3.5rem)] md:h-full
           w-64
           transform transition-transform duration-300
-          ${sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+          ${
+            sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+          }
           z-30 md:z-20
-          bg-white/10 backdrop-blur-lg border-r border-white/20 p-4 flex flex-col
+          bg-gradient-to-br from-purple-600 via-pink-500 to-red-500 backdrop-blur-lg border-r border-white/20 p-4 flex flex-col
         `}
       >
         <div className="mb-4">
@@ -184,7 +192,9 @@ export default function Chat() {
               onClick={() => setActiveChatId(chat.id)}
             >
               <p className="font-medium">{chat.title}</p>
-              <span className="text-sm text-gray-200">{new Date(chat.createdAt).toLocaleDateString()}</span>
+              <span className="text-sm text-gray-200">
+                {new Date(chat.created_at).toLocaleDateString()}
+              </span>
             </div>
           ))}
         </div>
@@ -216,20 +226,27 @@ export default function Chat() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.map((msg, idx) => (
+          {messages.map((msg, index) => (
             <div
-              key={idx}
-              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+              key={index}
+              className={`flex ${
+                msg.role === "user" ? "justify-end" : "justify-start"
+              }`}
             >
               <div
                 className={`max-w-xs px-4 py-2 rounded-lg shadow-md ${
-                  msg.role === "user" ? "bg-blue-600 text-white" : "bg-white text-gray-800"
+                  msg.role === "user"
+                    ? "bg-blue-600 text-white"
+                    : msg.isError
+                    ? "bg-red-500 text-white"
+                    : "bg-white text-gray-800"
                 }`}
               >
                 {msg.content}
               </div>
             </div>
           ))}
+
           <div ref={messagesEndRef} />
         </div>
 

@@ -12,8 +12,8 @@ router.get("/", chatController.getChats);
 // Get messages of a specific chat
 router.get("/:chatId", chatController.getChatMessages);
 
-// Get messages of a specific chat
-router.post("/:chatId/message", chatController.sendMessage);
+// stream AI reply
+router.get("/:chatId/messages", chatController.sendMessage);
 
 // Stop AI response streaming
 router.post("/:chatId/stop", chatController.stopStreaming);

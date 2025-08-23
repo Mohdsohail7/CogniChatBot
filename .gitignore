@@ -1,2 +1,12 @@
+# Node modules
+node_modules
 /backend/node_modules
-/backend/.env
+/frontend/node_modules
+
+# Env files (all variants)
+/backend/.env*
+/frontend/.env*
+
+# Build outputs
+/frontend/build
+/backend/dist

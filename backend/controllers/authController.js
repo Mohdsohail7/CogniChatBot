@@ -28,7 +28,7 @@ exports.register = async (req, res) => {
 
         // convert password into hash
         const hashPassword = await bcrypt.hash(password, 10);
-        const user = await User.create({ email, name, password: hashPassword });
+        const user = await User.create({ email, name, password: hashPassword, provider: "local" });
 
         // return successfull response
         return res.status(201).json({ message: "User registered successfully.", user: user });
@@ -73,8 +73,8 @@ exports.googleAuth = async (req, res) => {
 
         // get user info from google
         const { data, error } = await supabase.auth.getUser(access_token);
-        if (error) {
-            return res.status(400).json({ message: error.message });
+        if (error || !data?.user) {
+            return res.status(400).json({ message: "Invalid or expired token" });
         } 
 
         let user = await User.findOne({ where : { email: data.user.email }});
@@ -82,7 +82,7 @@ exports.googleAuth = async (req, res) => {
         if (!user) {
             user = await User.create({
                 email: data.user.email,
-                name: data.user.user_metadata.full_name,
+                name: data.user.user_metadata.full_name || data.user.email.split("@")[0],
                 provider: "google"
             })
         }

@@ -1,5 +1,7 @@
 const { Chat, Message } = require("../models");
-const { spawn } = require("child_process");
+const Groq = require("groq-sdk");
+
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 
 // Track active Ollama processes for stop functionality
@@ -15,6 +17,7 @@ exports.createChat = async (req, res) => {
         return res.status(201).json(chat);
 
     } catch (error) {
+        console.error("Error in create chats", error)
         return res.status(500).json({ message: "Server Error", error: error.message });
     }
 }
@@ -23,10 +26,11 @@ exports.createChat = async (req, res) => {
 exports.getChats = async (req, res) => {
     try {
         const chats = await Chat.findAll({
-            order: [["createdAt", "DESC"]],
+            order: [["created_at", "DESC"]],
         });
         return res.json(chats);
     } catch (error) {
+        console.error("Error in get chats", error)
         return res.status(500).json({ message: "Server Error", error: error.message });
     }
 }
@@ -34,68 +38,66 @@ exports.getChats = async (req, res) => {
 exports.getChatMessages = async (req, res) => {
     try {
         const { chatId } = req.params;
-        const messages = await Message.findAll({ where: { chat_id: chatId }, order: [["createdAt", "ASC"]] });
+        const messages = await Message.findAll({ where: { chat_id: chatId }, order: [["timestamp", "ASC"]] });
         return res.json(messages);
     } catch (error) {
+        console.error("error in get chat message", error);
         return res.status(500).json({ message: "Server Error", error: error.message });
     }
 }
 
-// send messaged
+// send message using Groq API (streaming)
 exports.sendMessage = async (req, res) => {
-    try {
-        const { chatId } = req.params;
-        const { content } = req.body;
+  try {
+    const { chatId } = req.params;
+    const content = req.query.content;
 
-        // store user message
-        await Message.create({
-            chat_id: chatId,
-            role: "user",
-            content
-        });
+    // store user message in DB
+    await Message.create({
+      chat_id: chatId,
+      role: "user",
+      content
+    });
 
-        // Set up streaming response
-        res.setHeader("Content-Type", "text/event-stream");
-        res.setHeader("Cache-Control", "no-cache");
-        res.setHeader("Connection", "keep-alive");
-        
-        // Spawn Ollama process 
-        const ollama = spawn("ollama", ["run", "gemma:1b", "--stream"]);
+    // setup streaming response headers
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
 
-        activeProcesses[chatId] = ollama;
+    let botReply = "";
 
-        let botReply = "";
+    // call Groq API with streaming
+    const stream = await groq.chat.completions.create({
+      model: "llama3-8b-8192",  // you can also use "mixtral-8x7b-32768" or "gemma-7b-it"
+      messages: [{ role: "user", content }],
+      stream: true,
+    });
 
-        ollama.stdin.write(content + "\n");
-        ollama.stdin.end();
-
-        ollama.stdout.on("data", async (data) => {
-            const token = data.toString();
-            botReply += token;
-            res.write(`event: message\n`);
-            res.write(`data: ${JSON.stringify({ token })}\n\n`);
-        });
-
-        ollama.stderr.on("data", (data) => {
-            console.error(`Ollama error: ${data}`);
-        });
-
-        ollama.on("close", async () => {
-            delete activeProcesses[chatId];
-            await Message.create({
-                chat_id: chatId,
-                role: "bot",
-                content: botReply
-            })
-            res.write(`event: done\n`);
-            res.write(`data: [DONE]\n\n`);
-            res.end();
-        });
-
-    } catch (error) {
-        return res.status(500).json({ message: "Server Error", error: error.message });
+    for await (const chunk of stream) {
+      const token = chunk.choices[0]?.delta?.content || "";
+      botReply += token;
+      res.write(`event: message\n`);
+      res.write(`data: ${JSON.stringify({ token })}\n\n`);
     }
-}
+
+    // save bot reply in DB
+    await Message.create({
+      chat_id: chatId,
+      role: "bot",
+      content: botReply,
+    });
+
+    res.write(`event: done\n`);
+    res.write(`data: [DONE]\n\n`);
+    res.end();
+
+  } catch (error) {
+    console.error("Error in sendMessage:", error);
+    res.write(`event: error\n`);
+    res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+    res.end();
+  }
+};
 
 // Stop an ongoing response
 exports.stopStreaming = async (req, res) => {

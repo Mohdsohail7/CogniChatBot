@@ -1,0 +1,22 @@
+{
+  "name": "cognichatbot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+  "dev": "concurrently -c \"blue,green\" -n \"BACKEND,FRONTEND\" \"npm run dev --prefix backend\" \"npm start --prefix frontend\""
+},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mohdsohail7/CogniChatBot.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Mohdsohail7/CogniChatBot/issues"
+  },
+  "homepage": "https://github.com/Mohdsohail7/CogniChatBot#readme",
+  "description": "",
+  "devDependencies": {
+    "concurrently": "^9.2.0"
+  }
+}
