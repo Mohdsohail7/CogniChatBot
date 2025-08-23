@@ -18,4 +18,7 @@ router.get("/:chatId/messages", chatController.sendMessage);
 // Stop AI response streaming
 router.post("/:chatId/stop", chatController.stopStreaming);
 
+// update chat title
+router.put("/:chatId/title", chatController.updateChatTitle);
+
 module.exports = router;

@@ -1,12 +1,31 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Plus, Send, StopCircle, Menu, X } from "lucide-react";
+import { Plus, Send, StopCircle, Menu, X, Settings, LogOut, HelpCircle, UserCircle } from "lucide-react";
 import {
   chatsList,
   createChat,
   getChatMessages,
+  getMe,
   sendMessageStream,
   stopStreaming,
+  updateChatTitle,
 } from "../utils/api";
+import { getInitials } from "../utils/initialName";
+
+
+// dynamic menu
+const profileMenu = [
+  { label: "Settings", icon: Settings, onClick: () => alert("Open Settings") },
+  { label: "Help", icon: HelpCircle, onClick: () => alert("Help Section") },
+  {
+    label: "Logout",
+    icon: LogOut,
+    onClick: () => {
+      localStorage.removeItem("token");
+      window.location.href = "/login";
+    },
+    danger: true,
+  },
+];
 
 export default function Chat() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -19,6 +38,18 @@ export default function Chat() {
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
   const abortRef = useRef(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef(null);
+  const dropdownRef = useRef(null);
+
+  // get user dynamically
+  const [user, setUser] = useState(null);
+  useEffect(() => {
+    (async () => {
+      const me = await getMe();
+      if (me) setUser(me);
+    })();
+  },[])
 
   const activeChat = useMemo(
     () => chats.find((chat) => chat.id === activeChatId) || null,
@@ -79,12 +110,20 @@ export default function Chat() {
     setInput("");
     setMessages((prev) => [...prev, { role: "user", content: userText }]);
 
+    let newTitle;
     // Local title update
     if (activeChat?.title === "New Chat") {
-      const newTitle = autoNameFrom(userText);
+      newTitle = autoNameFrom(userText);
       setChats((prev) =>
         prev.map((c) => (c.id === activeChatId ? { ...c, title: newTitle } : c))
       );
+    }
+
+    // update backend
+    try {
+      await updateChatTitle(activeChatId, newTitle);
+    } catch (err) {
+      console.error("Failed to update chat title:", err);
     }
 
     // Prepare assistant placeholder
@@ -155,6 +194,23 @@ export default function Chat() {
     return words.charAt(0).toUpperCase() + words.slice(1);
   };
 
+  // Close profile dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target) &&
+        !profileRef.current.contains(event.target)
+      ) {
+        setProfileOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
   return (
     <div className="flex h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-red-500">
       {/* Sidebar */}
@@ -198,6 +254,57 @@ export default function Chat() {
             </div>
           ))}
         </div>
+
+        {/* Profile Button (fixed at bottom) */}
+        <div className="relative">
+          <button
+            ref={profileRef}
+            onClick={() => setProfileOpen((p) => !p)}
+            className="w-full flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-3 py-2 rounded-lg mt-2"
+          >
+            {/* Avatar with initials */}
+            <span className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-700 font-bold">
+              {getInitials(user?.name)}
+              
+            </span>
+            <span>{user?.name}</span>
+          </button>
+
+          {/* Profile dropdown */}
+          {profileOpen && (
+            <div
+              ref={dropdownRef}
+              className="absolute bottom-14 left-0 w-60 bg-gradient-to-br from-purple-600 via-pink-500 to-red-500 rounded-xl shadow-lg border border-gray-200 p-3"
+            >
+              {/* User Info */}
+              <div className="mb-3 flex items-center gap-1">
+                <UserCircle size={15} className="text-gray-600" />
+                <p className="text-sm text-gray-600">{user?.email}</p>
+              </div>
+
+              {/* Menu Items */}
+              <div className="space-y-2">
+                {profileMenu.map((item, idx) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={idx}
+                      onClick={item.onClick}
+                      className={`w-full flex items-center gap-2 px-2 py-2 rounded-md hover:bg-gradient-to-br from-purple-500 via-pink-500 to-red-500 text-left ${
+                        item.danger
+                          ? "text-gray-700 font-medium"
+                          : "text-gray-800"
+                      }`}
+                    >
+                      <Icon size={18} />
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Chat Area */}
@@ -234,7 +341,7 @@ export default function Chat() {
               }`}
             >
               <div
-                className={`max-w-xs px-4 py-2 rounded-lg shadow-md ${
+                className={`w-auto px-4 py-2 rounded-lg shadow-md ${
                   msg.role === "user"
                     ? "bg-blue-600 text-white"
                     : msg.isError
@@ -277,6 +384,8 @@ export default function Chat() {
           )}
         </div>
       </div>
+
+
     </div>
   );
 }

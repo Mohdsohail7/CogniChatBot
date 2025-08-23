@@ -4,12 +4,14 @@ import Register from './pages/Register';
 import Login from './pages/Login';
 import Chat from './pages/Chat';
 import ProtectedRoute from './utils/ProtectedRoute';
+import GoogleCallback from './pages/GoogleCallback';
 
 function App() {
   return (
     <Router>
       <Routes>
         {/* Public routes */}
+        <Route path="/google-callback" element={<GoogleCallback />} />
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
 

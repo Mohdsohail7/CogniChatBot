@@ -122,3 +122,24 @@ exports.stopStreaming = async (req, res) => {
     }
     return res.status(400).json({ stopped: false });
 };
+
+// Update chat title
+exports.updateChatTitle = async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const { title } = req.body;
+
+    const chat = await Chat.findByPk(chatId);
+    if (!chat) {
+      return res.status(404).json({ message: "Chat not found" });
+    }
+
+    chat.title = title;
+    await chat.save();
+
+    return res.json({ message: "Chat title updated", chat });
+  } catch (error) {
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+

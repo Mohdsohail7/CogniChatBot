@@ -76,3 +76,25 @@ export async function googleOAuth(access_token) {
     const result = await axiosInstance.post("/auth/google-login", { access_token });
     return result.data;
 }
+
+// get current user
+export const getMe = async () => {
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) return null;
+
+    const res = await axiosInstance.get("/auth/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return res.data;
+  } catch (err) {
+    console.error("Failed to fetch user:", err);
+    return null;
+  }
+};
+
+// update chat title
+export async function updateChatTitle(chatId, title) {
+  const res = await axiosInstance.put(`/chats/${chatId}/title`, { title });
+  return res.data;
+}

@@ -29,7 +29,7 @@ export default function Register() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: "http://localhost:3000/chat",
+        redirectTo: "http://localhost:3000/google-callback",
       },
     });
     if (error) console.error("Supabase login error:", error);

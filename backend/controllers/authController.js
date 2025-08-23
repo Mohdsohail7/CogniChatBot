@@ -93,3 +93,20 @@ exports.googleAuth = async (req, res) => {
         return res.status(500).json({ message: "Server Error", error: error.message });
     }
 }
+
+// Get current logged-in user
+exports.getMe = async (req, res) => {
+  try {
+    const user = req.user; // already attached from middleware
+    return res.json({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      provider: user.provider,
+      plan: user.plan || "Free Plan",
+      createdAt: user.createdAt,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: "Server Error", error: error.message });
+  }
+};
