@@ -41,6 +41,8 @@ export default function Chat() {
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef(null);
   const dropdownRef = useRef(null);
+  const [dropdownChatId, setDropdownChatId] = useState(null);
+
 
   // get user dynamically
   const [user, setUser] = useState(null);
@@ -211,6 +213,17 @@ export default function Chat() {
     };
   }, []);
 
+  useEffect(() => {
+  function handleClickOutside(e) {
+    if (!e.target.closest(".chat-dropdown")) {
+      setDropdownChatId(null);
+    }
+  }
+  document.addEventListener("mousedown", handleClickOutside);
+  return () => document.removeEventListener("mousedown", handleClickOutside);
+}, []);
+
+
   return (
     <div className="flex h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-red-500">
       {/* Sidebar */}
@@ -242,15 +255,77 @@ export default function Chat() {
           {chats.map((chat) => (
             <div
               key={chat.id}
-              className={`p-3 rounded-lg hover:bg-white/20 cursor-pointer text-white ${
+              className={`p-3 rounded-lg hover:bg-white/20 cursor-pointer text-white flex justify-between items-center relative ${
                 chat.id === activeChatId ? "bg-white/20" : ""
               }`}
               onClick={() => setActiveChatId(chat.id)}
             >
-              <p className="font-medium">{chat.title}</p>
+              <div>
+                <p className="font-medium">{chat.title}</p>
               <span className="text-sm text-gray-200">
                 {new Date(chat.created_at).toLocaleDateString()}
               </span>
+              </div>
+
+              {/* Three dots button */}
+              <button
+                className="p-1 hover:bg-white/30 rounded-full"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDropdownChatId(dropdownChatId === chat.id ? null : chat.id);
+                }}
+              >
+                ⋮
+              </button>
+
+              {/* Dropdown menu */}
+              {dropdownChatId === chat.id && (
+                <div className="absolute right-0 top-12 bg-gradient-to-br from-purple-700 via-pink-500 to-red-500 text-gray-800 rounded-lg shadow-lg w-40 z-50 chat-dropdown">
+                  <button
+                    className="block w-full text-left px-4 py-2 hover:bg-gradient-to-br from-purple-500 via-pink-400 to-red-400"
+                    onClick={() => {
+                      const newTitle = prompt("Enter new chat name:", chat.title);
+                      if (newTitle) {
+                        setChats((prev) =>
+                          prev.map((c) =>
+                            c.id === chat.id ? { ...c, title: newTitle } : c
+                          )
+                        );
+                      }
+                      setDropdownChatId(null);
+                    }}
+                  >
+                    ✏️ Rename
+                  </button>
+                  <button
+                    className="block w-full text-left px-4 py-2 hover:bg-gradient-to-br from-purple-500 via-pink-400 to-red-400"
+                    onClick={() => {
+                      navigator.clipboard.writeText(
+                        `${window.location.origin}/chat/${chat.id}`
+                      );
+                      alert("Chat link copied to clipboard!");
+                      setDropdownChatId(null);
+                    }}
+                  >
+                    🔗 Share
+                  </button>
+                  <button
+                    className="block w-full text-left px-4 py-2 hover:bg-gradient-to-br from-purple-500 via-pink-400 to-red-400 text-red-800"
+                    onClick={() => {
+                      if (window.confirm("Are you sure you want to delete this chat?")) {
+                        setChats((prev) => prev.filter((c) => c.id !== chat.id));
+                        if (activeChatId === chat.id) {
+                          setActiveChatId(null);
+                          setMessages([]);
+                        }
+                      }
+                      setDropdownChatId(null);
+                    }}
+                  >
+                    🗑️ Delete
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
