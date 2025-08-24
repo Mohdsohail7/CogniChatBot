@@ -3,7 +3,6 @@ const Groq = require("groq-sdk");
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-
 // Track active Ollama processes for stop functionality
 const activeProcesses = {};
 // Store partial bot replies
@@ -11,40 +10,48 @@ let partialReplies = {};
 
 // user chat create
 exports.createChat = async (req, res) => {
-    try {
-        const { title } = req.body;
-        const chat = await Chat.create({ title });
-        return res.status(201).json(chat);
-
-    } catch (error) {
-        console.error("Error in create chats", error)
-        return res.status(500).json({ message: "Server Error", error: error.message });
-    }
-}
+  try {
+    const { title } = req.body;
+    const chat = await Chat.create({ title });
+    return res.status(201).json(chat);
+  } catch (error) {
+    console.error("Error in create chats", error);
+    return res
+      .status(500)
+      .json({ message: "Server Error", error: error.message });
+  }
+};
 
 // get user chat
 exports.getChats = async (req, res) => {
-    try {
-        const chats = await Chat.findAll({
-            order: [["created_at", "DESC"]],
-        });
-        return res.json(chats);
-    } catch (error) {
-        console.error("Error in get chats", error)
-        return res.status(500).json({ message: "Server Error", error: error.message });
-    }
-}
+  try {
+    const chats = await Chat.findAll({
+      order: [["created_at", "DESC"]],
+    });
+    return res.json(chats);
+  } catch (error) {
+    console.error("Error in get chats", error);
+    return res
+      .status(500)
+      .json({ message: "Server Error", error: error.message });
+  }
+};
 
 exports.getChatMessages = async (req, res) => {
-    try {
-        const { chatId } = req.params;
-        const messages = await Message.findAll({ where: { chat_id: chatId }, order: [["timestamp", "ASC"]] });
-        return res.json(messages);
-    } catch (error) {
-        console.error("error in get chat message", error);
-        return res.status(500).json({ message: "Server Error", error: error.message });
-    }
-}
+  try {
+    const { chatId } = req.params;
+    const messages = await Message.findAll({
+      where: { chat_id: chatId },
+      order: [["timestamp", "ASC"]],
+    });
+    return res.json(messages);
+  } catch (error) {
+    console.error("error in get chat message", error);
+    return res
+      .status(500)
+      .json({ message: "Server Error", error: error.message });
+  }
+};
 
 // send message using Groq API (streaming)
 exports.sendMessage = async (req, res) => {
@@ -56,7 +63,7 @@ exports.sendMessage = async (req, res) => {
     await Message.create({
       chat_id: chatId,
       role: "user",
-      content
+      content,
     });
 
     // setup streaming response headers
@@ -65,17 +72,26 @@ exports.sendMessage = async (req, res) => {
     res.setHeader("Connection", "keep-alive");
 
     let botReply = "";
+    partialReplies[chatId] = "";
+
+    // Create AbortController for this chat
+    const controller = new AbortController();
+    activeProcesses[chatId] = controller;
 
     // call Groq API with streaming
-    const stream = await groq.chat.completions.create({
-      model: "llama3-8b-8192",  // you can also use "mixtral-8x7b-32768" or "gemma-7b-it"
-      messages: [{ role: "user", content }],
-      stream: true,
-    });
+    const stream = await groq.chat.completions.create(
+      {
+        model: "llama3-8b-8192", // you can also use "mixtral-8x7b-32768" or "gemma-7b-it"
+        messages: [{ role: "user", content }],
+        stream: true,
+      },
+      { signal: controller.signal } // pass abort signal
+    );
 
     for await (const chunk of stream) {
       const token = chunk.choices[0]?.delta?.content || "";
       botReply += token;
+      partialReplies[chatId] = botReply;
       res.write(`event: message\n`);
       res.write(`data: ${JSON.stringify({ token })}\n\n`);
     }
@@ -91,6 +107,8 @@ exports.sendMessage = async (req, res) => {
     res.write(`data: [DONE]\n\n`);
     res.end();
 
+    delete activeProcesses[chatId];
+    delete partialReplies[chatId];
   } catch (error) {
     console.error("Error in sendMessage:", error);
     res.write(`event: error\n`);
@@ -101,26 +119,27 @@ exports.sendMessage = async (req, res) => {
 
 // Stop an ongoing response
 exports.stopStreaming = async (req, res) => {
-    const { chatId } = req.params;
-    if (activeProcesses[chatId]) {
-        const process = activeProcesses[chatId];
-        process.kill();
+  const { chatId } = req.params;
+  const controller = activeProcesses[chatId];
 
-        // Save partial bot message before deleting
-        // This requires tracking botReply globally per chatId
-        if (partialReplies[chatId]) {
-            await Message.create({
-                chat_id: chatId,
-                role: "bot",
-                content: partialReplies[chatId]
-            });
-        }
+  if (controller) {
+    controller.abort(); // stop stream immediately
 
-        delete activeProcesses[chatId];
-        delete partialReplies[chatId];
-        return res.json({ stopped: true });
+    // Save partial bot message before deleting
+    // This requires tracking botReply globally per chatId
+    if (partialReplies[chatId]) {
+      await Message.create({
+        chat_id: chatId,
+        role: "bot",
+        content: partialReplies[chatId],
+      });
     }
-    return res.status(400).json({ stopped: false });
+
+    delete activeProcesses[chatId];
+    delete partialReplies[chatId];
+    return res.json({ stopped: true });
+  }
+  return res.status(400).json({ stopped: false });
 };
 
 // Update chat title
@@ -139,7 +158,9 @@ exports.updateChatTitle = async (req, res) => {
 
     return res.json({ message: "Chat title updated", chat });
   } catch (error) {
-    return res.status(500).json({ message: "Server error", error: error.message });
+    return res
+      .status(500)
+      .json({ message: "Server error", error: error.message });
   }
 };
 
@@ -160,6 +181,8 @@ exports.deleteChat = async (req, res) => {
 
     return res.json({ message: "Chat deleted" });
   } catch (error) {
-    return res.status(500).json({ message: "Server error", error: error.message });
+    return res
+      .status(500)
+      .json({ message: "Server error", error: error.message });
   }
 };
