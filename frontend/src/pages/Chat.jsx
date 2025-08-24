@@ -3,6 +3,7 @@ import { Plus, Send, StopCircle, Menu, X, Settings, LogOut, HelpCircle, UserCirc
 import {
   chatsList,
   createChat,
+  deleteChat,
   getChatMessages,
   getMe,
   sendMessageStream,
@@ -42,6 +43,8 @@ export default function Chat() {
   const profileRef = useRef(null);
   const dropdownRef = useRef(null);
   const [dropdownChatId, setDropdownChatId] = useState(null);
+  const [showPlaceholder, setShowPlaceholder] = useState(false);
+
 
 
   // get user dynamically
@@ -92,12 +95,22 @@ export default function Chat() {
         content: msg.content,
         createdAt: msg.createdAt,
       }));
+      if (mapped.length === 0) {
+      // if chat is empty, show placeholder
+      setShowPlaceholder(true);
+      setMessages([]);
+    } else {
+      setShowPlaceholder(false);
       setMessages(mapped);
+    }
     })();
   }, [activeChatId]);
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
+
+    // hide placeholder as soon as user types
+    setShowPlaceholder(false);
 
     let chatId = activeChatId;
     if (!chatId) {
@@ -183,9 +196,8 @@ export default function Chat() {
     const created = await createChat("New Chat");
     setChats((prev) => [created, ...prev]);
     setActiveChatId(created.id);
-    setMessages([
-      { role: "assistant", content: "New chat started. Ask me anything!" },
-    ]);
+    setShowPlaceholder(true);
+    setMessages([]);
     setSidebarOpen(false); // collapse on mobile
   };
 
@@ -283,14 +295,19 @@ export default function Chat() {
                 <div className="absolute right-0 top-12 bg-gradient-to-br from-purple-700 via-pink-500 to-red-500 text-gray-800 rounded-lg shadow-lg w-40 z-50 chat-dropdown">
                   <button
                     className="block w-full text-left px-4 py-2 hover:bg-gradient-to-br from-purple-500 via-pink-400 to-red-400"
-                    onClick={() => {
-                      const newTitle = prompt("Enter new chat name:", chat.title);
+                    onClick={async() => {
+                      const newTitle = prompt("Enter new chat name:", chat?.title);
                       if (newTitle) {
-                        setChats((prev) =>
+                        try {
+                          const updated = await updateChatTitle(chat.id, newTitle);
+                          setChats((prev) =>
                           prev.map((c) =>
-                            c.id === chat.id ? { ...c, title: newTitle } : c
-                          )
-                        );
+                            c.id === chat.id ? { ...c, title: updated.title } : c ));
+                        } catch (err) {
+                          console.error("Rename failed:", err);
+                          alert("Failed to rename chat.");
+                        }
+                        
                       }
                       setDropdownChatId(null);
                     }}
@@ -311,13 +328,20 @@ export default function Chat() {
                   </button>
                   <button
                     className="block w-full text-left px-4 py-2 hover:bg-gradient-to-br from-purple-500 via-pink-400 to-red-400 text-red-800"
-                    onClick={() => {
+                    onClick={async () => {
                       if (window.confirm("Are you sure you want to delete this chat?")) {
-                        setChats((prev) => prev.filter((c) => c.id !== chat.id));
-                        if (activeChatId === chat.id) {
-                          setActiveChatId(null);
-                          setMessages([]);
+                        try {
+                          await deleteChat(chat.id);
+                          setChats((prev) => prev.filter((c) => c.id !== chat.id));
+                          if (activeChatId === chat.id) {
+                            setActiveChatId(null);
+                            setMessages([]);
+                          }
+                        } catch (err) {
+                          console.error("Delete failed:", err);
+                          alert("Failed to delete chat.");
                         }
+                        
                       }
                       setDropdownChatId(null);
                     }}
@@ -408,6 +432,13 @@ export default function Chat() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {showPlaceholder && (
+            <div className="flex justify-start">
+              <div className="w-auto px-4 py-2 rounded-lg shadow-md bg-white text-gray-500 italic">
+                New chat started. Ask me anything!
+              </div>
+            </div>
+          )}
           {messages.map((msg, index) => (
             <div
               key={index}

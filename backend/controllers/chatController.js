@@ -143,3 +143,23 @@ exports.updateChatTitle = async (req, res) => {
   }
 };
 
+exports.deleteChat = async (req, res) => {
+  try {
+    const { chatId } = req.params;
+
+    const chat = await Chat.findByPk(chatId);
+    if (!chat) {
+      return res.status(404).json({ message: "Chat not found" });
+    }
+
+    // delete messages first (FK constraint)
+    await Message.destroy({ where: { chat_id: chatId } });
+
+    // delete chat
+    await chat.destroy();
+
+    return res.json({ message: "Chat deleted" });
+  } catch (error) {
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+};

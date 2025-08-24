@@ -93,8 +93,14 @@ export const getMe = async () => {
   }
 };
 
-// update chat title
+// update chat title / rename chat
 export async function updateChatTitle(chatId, title) {
   const res = await axiosInstance.put(`/chats/${chatId}/title`, { title });
-  return res.data;
+  return res.data.chat;
+}
+
+// delete chat
+export async function deleteChat(chatId) {
+  await axiosInstance.delete(`/chats/${chatId}`);
+  return true;
 }

@@ -18,7 +18,10 @@ router.get("/:chatId/messages", chatController.sendMessage);
 // Stop AI response streaming
 router.post("/:chatId/stop", chatController.stopStreaming);
 
-// update chat title
+// update chat title / rename chat
 router.put("/:chatId/title", chatController.updateChatTitle);
+
+// delete chat
+router.delete("/:chatId", chatController.deleteChat);
 
 module.exports = router;
