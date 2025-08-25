@@ -22,6 +22,7 @@ import {
   updateChatTitle,
 } from "../utils/api";
 import { getInitials } from "../utils/initialName";
+import TypingIndicator from "../components/TypingIndicator";
 
 // dynamic menu
 const profileMenu = [
@@ -56,6 +57,7 @@ export default function Chat() {
   const [showPlaceholder, setShowPlaceholder] = useState(false);
   const [editingChatId, setEditingChatId] = useState(null);
   const [tempTitle, setTempTitle] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
 
   // get user dynamically
   const [user, setUser] = useState(null);
@@ -159,11 +161,20 @@ export default function Chat() {
     abortRef.current = new AbortController();
 
     try {
+
+      setIsTyping(true);
+      let firstChunk = true;
+
       await sendMessageStream({
         chatId: activeChatId,
         content: userText,
         signal: abortRef.current.signal,
         onToken: (chunk) => {
+          if (firstChunk) {
+            setIsTyping(false);
+            firstChunk = false;
+          }
+
           setMessages((prev) => {
             const last = prev[prev.length - 1];
             if (!last || last.role !== "assistant") return prev;
@@ -491,11 +502,15 @@ export default function Chat() {
                     : "bg-white text-gray-800"
                 }`}
               >
-                {msg.content}
+                {/* If assistant bubble is empty + typing → show indicator */}
+                {msg.role === "assistant" && msg.content === "" && isTyping ? (
+                  <TypingIndicator />
+                ) : (
+                  msg.content
+                )}
               </div>
             </div>
           ))}
-
           <div ref={messagesEndRef} />
         </div>
 
