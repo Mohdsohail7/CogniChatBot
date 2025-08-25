@@ -1,5 +1,6 @@
 import './App.css';
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { Toaster } from "react-hot-toast";
 import Register from './pages/Register';
 import Login from './pages/Login';
 import Chat from './pages/Chat';
@@ -8,6 +9,22 @@ import GoogleCallback from './pages/GoogleCallback';
 
 function App() {
   return (
+    <>
+    <Toaster position="top-center"
+    toastOptions={{
+      success: {
+        style: {
+          background: "#9bba9cff",
+          color: "#fff",
+        }
+      },
+      error: {
+        style: {
+          background: "#9bba9cff",
+          color: "#fff"
+        }
+      }
+    }} />
     <Router>
       <Routes>
         {/* Public routes */}
@@ -29,6 +46,7 @@ function App() {
         <Route path="*" element={<Login />} />
       </Routes>
     </Router>
+    </>
   );
 }
 

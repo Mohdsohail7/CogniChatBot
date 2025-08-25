@@ -1,5 +1,16 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Plus, Send, StopCircle, Menu, X, Settings, LogOut, HelpCircle, UserCircle } from "lucide-react";
+import toast from "react-hot-toast";
+import {
+  Plus,
+  Send,
+  StopCircle,
+  Menu,
+  X,
+  Settings,
+  LogOut,
+  HelpCircle,
+  UserCircle,
+} from "lucide-react";
 import {
   chatsList,
   createChat,
@@ -11,7 +22,6 @@ import {
   updateChatTitle,
 } from "../utils/api";
 import { getInitials } from "../utils/initialName";
-
 
 // dynamic menu
 const profileMenu = [
@@ -44,8 +54,8 @@ export default function Chat() {
   const dropdownRef = useRef(null);
   const [dropdownChatId, setDropdownChatId] = useState(null);
   const [showPlaceholder, setShowPlaceholder] = useState(false);
-
-
+  const [editingChatId, setEditingChatId] = useState(null);
+  const [tempTitle, setTempTitle] = useState("");
 
   // get user dynamically
   const [user, setUser] = useState(null);
@@ -54,7 +64,7 @@ export default function Chat() {
       const me = await getMe();
       if (me) setUser(me);
     })();
-  },[])
+  }, []);
 
   const activeChat = useMemo(
     () => chats.find((chat) => chat.id === activeChatId) || null,
@@ -96,13 +106,13 @@ export default function Chat() {
         createdAt: msg.createdAt,
       }));
       if (mapped.length === 0) {
-      // if chat is empty, show placeholder
-      setShowPlaceholder(true);
-      setMessages([]);
-    } else {
-      setShowPlaceholder(false);
-      setMessages(mapped);
-    }
+        // if chat is empty, show placeholder
+        setShowPlaceholder(true);
+        setMessages([]);
+      } else {
+        setShowPlaceholder(false);
+        setMessages(mapped);
+      }
     })();
   }, [activeChatId]);
 
@@ -226,15 +236,14 @@ export default function Chat() {
   }, []);
 
   useEffect(() => {
-  function handleClickOutside(e) {
-    if (!e.target.closest(".chat-dropdown")) {
-      setDropdownChatId(null);
+    function handleClickOutside(e) {
+      if (!e.target.closest(".chat-dropdown")) {
+        setDropdownChatId(null);
+      }
     }
-  }
-  document.addEventListener("mousedown", handleClickOutside);
-  return () => document.removeEventListener("mousedown", handleClickOutside);
-}, []);
-
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-red-500">
@@ -274,9 +283,9 @@ export default function Chat() {
             >
               <div>
                 <p className="font-medium">{chat.title}</p>
-              <span className="text-sm text-gray-200">
-                {new Date(chat.created_at).toLocaleDateString()}
-              </span>
+                <span className="text-sm text-gray-200">
+                  {new Date(chat.created_at).toLocaleDateString()}
+                </span>
               </div>
 
               {/* Three dots button */}
@@ -284,7 +293,9 @@ export default function Chat() {
                 className="p-1 hover:bg-white/30 rounded-full"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setDropdownChatId(dropdownChatId === chat.id ? null : chat.id);
+                  setDropdownChatId(
+                    dropdownChatId === chat.id ? null : chat.id
+                  );
                 }}
               >
                 ⋮
@@ -293,34 +304,60 @@ export default function Chat() {
               {/* Dropdown menu */}
               {dropdownChatId === chat.id && (
                 <div className="absolute right-0 top-12 bg-gradient-to-br from-purple-700 via-pink-500 to-red-500 text-gray-800 rounded-lg shadow-lg w-40 z-50 chat-dropdown">
-                  <button
-                    className="block w-full text-left px-4 py-2 hover:bg-gradient-to-br from-purple-500 via-pink-400 to-red-400"
-                    onClick={async() => {
-                      const newTitle = prompt("Enter new chat name:", chat?.title);
-                      if (newTitle) {
-                        try {
-                          const updated = await updateChatTitle(chat.id, newTitle);
-                          setChats((prev) =>
-                          prev.map((c) =>
-                            c.id === chat.id ? { ...c, title: updated.title } : c ));
-                        } catch (err) {
-                          console.error("Rename failed:", err);
-                          alert("Failed to rename chat.");
+                  {editingChatId === chat.id ? (
+                    <input
+                      type="text"
+                      value={tempTitle}
+                      onChange={(e) => setTempTitle(e.target.value)}
+                      onBlur={async () => {
+                        if (tempTitle.trim()) {
+                          try {
+                            const updated = await updateChatTitle(
+                              chat.id,
+                              tempTitle
+                            );
+                            setChats((prev) =>
+                              prev.map((c) =>
+                                c.id === chat.id
+                                  ? { ...c, title: updated.title }
+                                  : c
+                              )
+                            );
+                          } catch (err) {
+                            console.error("Rename failed:", err);
+                            toast.error("Failed to rename chat.");
+                          }
                         }
-                        
-                      }
-                      setDropdownChatId(null);
-                    }}
-                  >
-                    ✏️ Rename
-                  </button>
+                        setEditingChatId(null);
+                        setDropdownChatId(null);
+                      }}
+                      onKeyDown={async (e) => {
+                        if (e.key === "Enter") e.target.blur();
+                      }}
+                      className="w-full px-2 py-1 rounded-md text-sm text-white bg-transparent 
+             focus:outline-none focus:ring-2 focus:ring-pink-400 
+             border-none"
+                      autoFocus
+                    />
+                  ) : (
+                    <button
+                      className="block w-full text-left px-4 py-2 hover:bg-gradient-to-br from-purple-500 via-pink-400 to-red-400"
+                      onClick={() => {
+                        setEditingChatId(chat.id);
+                        setTempTitle(chat.title);
+                      }}
+                    >
+                      ✏️ Rename
+                    </button>
+                  )}
+                  {/* Share Option */}
                   <button
                     className="block w-full text-left px-4 py-2 hover:bg-gradient-to-br from-purple-500 via-pink-400 to-red-400"
                     onClick={() => {
                       navigator.clipboard.writeText(
                         `${window.location.origin}/chat/${chat.id}`
                       );
-                      alert("Chat link copied to clipboard!");
+                      toast.success("Chat link copied!");
                       setDropdownChatId(null);
                     }}
                   >
@@ -329,19 +366,19 @@ export default function Chat() {
                   <button
                     className="block w-full text-left px-4 py-2 hover:bg-gradient-to-br from-purple-500 via-pink-400 to-red-400 text-red-800"
                     onClick={async () => {
-                      if (window.confirm("Are you sure you want to delete this chat?")) {
-                        try {
-                          await deleteChat(chat.id);
-                          setChats((prev) => prev.filter((c) => c.id !== chat.id));
-                          if (activeChatId === chat.id) {
-                            setActiveChatId(null);
-                            setMessages([]);
-                          }
-                        } catch (err) {
-                          console.error("Delete failed:", err);
-                          alert("Failed to delete chat.");
+                      try {
+                        await deleteChat(chat.id);
+                        setChats((prev) =>
+                          prev.filter((c) => c.id !== chat.id)
+                        );
+                        if (activeChatId === chat.id) {
+                          setActiveChatId(null);
+                          setMessages([]);
                         }
-                        
+                        toast.success("Chat deleted!");
+                      } catch (err) {
+                        console.error("Delete failed:", err);
+                        toast.error("Failed to delete chat.");
                       }
                       setDropdownChatId(null);
                     }}
@@ -364,7 +401,6 @@ export default function Chat() {
             {/* Avatar with initials */}
             <span className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-gray-700 font-bold">
               {getInitials(user?.name)}
-              
             </span>
             <span>{user?.name}</span>
           </button>
@@ -490,8 +526,6 @@ export default function Chat() {
           )}
         </div>
       </div>
-
-
     </div>
   );
 }
