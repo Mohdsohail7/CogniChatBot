@@ -8,34 +8,37 @@ export default function GoogleCallback() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const handleGoogleLogin = async () => {
-      try {
-        // get session from Supabase
-        const { data, error } = await supabase.auth.getSession();
-        if (error || !data?.session) {
-          console.error("No session found:", error);
+    // Listen for auth state change instead of checking immediately
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session) {
+          try {
+            const access_token = session.access_token;
+
+            // send token to backend to get JWT + user
+            const res = await axiosInstance.post("/auth/google-login", {
+              access_token,
+            });
+
+            localStorage.setItem("token", res.data.token);
+            localStorage.setItem("user", JSON.stringify(res.data.user));
+
+            navigate("/chat");
+          } catch (err) {
+            console.error("Google login failed:", err);
+            navigate("/login");
+          }
+        } else {
+          // no session, send back to login
           navigate("/login");
-          return;
         }
-
-        const access_token = data.session.access_token;
-
-        // ✅ send token to backend to get JWT + user
-        const res = await axiosInstance.post("/auth/google-login", {
-          access_token,
-        });
-
-        localStorage.setItem("token", res.data.token);
-        localStorage.setItem("user", JSON.stringify(res.data.user));
-
-        navigate("/chat");
-      } catch (err) {
-        console.error("Google login failed:", err);
-        navigate("/login");
       }
-    };
+    );
 
-    handleGoogleLogin();
+    // cleanup listener on unmount
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, [navigate]);
 
   return (

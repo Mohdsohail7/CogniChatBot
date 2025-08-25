@@ -2,26 +2,27 @@ const express = require("express");
 const router = express.Router();
 
 const chatController = require("../controllers/chatController");
+const authMiddleware = require("../middleware/authMiddleware");
 
 // Create a new chat
-router.post("/", chatController.createChat);
+router.post("/", authMiddleware, chatController.createChat);
 
 // Get all chats
-router.get("/", chatController.getChats);
+router.get("/", authMiddleware, chatController.getChats);
 
 // Get messages of a specific chat
-router.get("/:chatId", chatController.getChatMessages);
+router.get("/:chatId", authMiddleware, chatController.getChatMessages);
 
 // stream AI reply
-router.get("/:chatId/messages", chatController.sendMessage);
+router.post("/:chatId/messages", authMiddleware, chatController.sendMessage);
 
 // Stop AI response streaming
-router.post("/:chatId/stop", chatController.stopStreaming);
+router.post("/:chatId/stop", authMiddleware, chatController.stopStreaming);
 
 // update chat title / rename chat
-router.put("/:chatId/title", chatController.updateChatTitle);
+router.put("/:chatId/title", authMiddleware, chatController.updateChatTitle);
 
 // delete chat
-router.delete("/:chatId", chatController.deleteChat);
+router.delete("/:chatId", authMiddleware, chatController.deleteChat);
 
 module.exports = router;

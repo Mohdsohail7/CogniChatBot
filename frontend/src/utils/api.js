@@ -18,38 +18,77 @@ export async function getChatMessages(chatId) {
     return data;
 }
 
-export const sendMessageStream = async ({ chatId, content, signal, onToken }) => {
-  return new Promise((resolve, reject) => {
-    const url = `${axiosInstance.defaults.baseURL}/chats/${chatId}/messages`;
+export const sendMessageStream = async ({ chatId, content, signal, onToken, onTyping }) => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const url = `${process.env.REACT_APP_BASE_URL || "http://localhost:4000/api"}/chats/${chatId}/messages`;
 
-    const eventSource = new EventSource(url + `?content=${encodeURIComponent(content)}`);
-
-    eventSource.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.token) {
-        onToken(data.token);
-      }
-    };
-
-    eventSource.addEventListener("done", () => {
-      eventSource.close();
-      resolve();
-    });
-
-    eventSource.addEventListener("error", (event) => {
-      console.error("Streaming error:", event);
-      eventSource.close();
-      reject(new Error("Streaming failed"));
-    });
-
-    if (signal) {
-      signal.addEventListener("abort", () => {
-        eventSource.close();
-        reject(new DOMException("Aborted", "AbortError"));
+      // Use fetch for POST + SSE streaming
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({ content }),
+        signal,
       });
+
+      if (!response.ok) {
+        reject(new Error(`HTTP ${response.status}`));
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const events = chunk.split("\n\n");
+
+        for (let evt of events) {
+          if (!evt.trim()) continue;
+
+          // Parse SSE lines
+          const [eventLine, dataLine] = evt.split("\n");
+          const eventName = eventLine.replace("event: ", "").trim();
+          const dataStr = dataLine.replace("data: ", "").trim();
+
+          try {
+            if (eventName === "message") {
+              const data = JSON.parse(dataStr);
+              if (data.token) onToken?.(data.token);
+            }
+            else if (eventName === "typing") {
+              const data = JSON.parse(dataStr);
+              onTyping?.(data.typing);
+            }
+            else if (eventName === "done") {
+              resolve();
+              return;
+            }
+            else if (eventName === "error") {
+              const data = JSON.parse(dataStr);
+              reject(new Error(data.error || "Streaming error"));
+              return;
+            }
+          } catch (err) {
+            console.error("SSE parse error:", err, evt);
+          }
+        }
+      }
+
+      resolve();
+    } catch (err) {
+      reject(err);
     }
   });
 };
+
+
 
 // -------------------------
 // Stop streaming

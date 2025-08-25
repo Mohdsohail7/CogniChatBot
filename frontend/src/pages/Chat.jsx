@@ -100,14 +100,16 @@ export default function Chat() {
   useEffect(() => {
     if (!activeChatId) return;
     (async () => {
-      const msgs = await getChatMessages(activeChatId);
+      try {
+        const msgs = await getChatMessages(activeChatId);
       // backend roles: "user" / "bot"
-      const mapped = msgs.map((msg) => ({
-        role: msg.role === "bot" ? "assistant" : msg.role,
-        content: msg.content,
-        createdAt: msg.createdAt,
-      }));
-      if (mapped.length === 0) {
+        const mapped = msgs.map((msg) => ({
+          role: msg.role === "bot" ? "assistant" : msg.role,
+          content: msg.content,
+          createdAt: msg.createdAt,
+        }));
+
+        if (mapped.length === 0) {
         // if chat is empty, show placeholder
         setShowPlaceholder(true);
         setMessages([]);
@@ -115,6 +117,14 @@ export default function Chat() {
         setShowPlaceholder(false);
         setMessages(mapped);
       }
+      } catch (err) {
+        console.error("Failed to load messages:", err);
+      // if chat was deleted or unauthorized → reset state
+      setMessages([]);
+      setActiveChatId(null);
+      setShowPlaceholder(false);
+      }
+      
     })();
   }, [activeChatId]);
 
@@ -162,18 +172,11 @@ export default function Chat() {
 
     try {
 
-      setIsTyping(true);
-      let firstChunk = true;
-
       await sendMessageStream({
         chatId: activeChatId,
         content: userText,
         signal: abortRef.current.signal,
         onToken: (chunk) => {
-          if (firstChunk) {
-            setIsTyping(false);
-            firstChunk = false;
-          }
 
           setMessages((prev) => {
             const last = prev[prev.length - 1];
@@ -186,6 +189,7 @@ export default function Chat() {
             return updated;
           });
         },
+        onTyping: (isTyping) => setIsTyping(isTyping),
       });
     } catch (err) {
       if (err.name !== "AbortError") {
@@ -194,6 +198,7 @@ export default function Chat() {
           { role: "assistant", content: "Stream failed.", isError: true },
         ]);
       }
+      setIsTyping(false);
     } finally {
       setLoading(false);
       abortRef.current = null;
@@ -385,6 +390,7 @@ export default function Chat() {
                         if (activeChatId === chat.id) {
                           setActiveChatId(null);
                           setMessages([]);
+                          setShowPlaceholder(false);
                         }
                         toast.success("Chat deleted!");
                       } catch (err) {

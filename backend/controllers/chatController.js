@@ -12,7 +12,7 @@ let partialReplies = {};
 exports.createChat = async (req, res) => {
   try {
     const { title } = req.body;
-    const chat = await Chat.create({ title });
+    const chat = await Chat.create({ title, user_id: req.user.id, });
     return res.status(201).json(chat);
   } catch (error) {
     console.error("Error in create chats", error);
@@ -26,6 +26,7 @@ exports.createChat = async (req, res) => {
 exports.getChats = async (req, res) => {
   try {
     const chats = await Chat.findAll({
+      where: { user_id: req.user.id },
       order: [["created_at", "DESC"]],
     });
     return res.json(chats);
@@ -40,6 +41,13 @@ exports.getChats = async (req, res) => {
 exports.getChatMessages = async (req, res) => {
   try {
     const { chatId } = req.params;
+    // ensure the chat belongs to this user
+    const chat = await Chat.findOne({
+      where: { id: chatId, user_id: req.user.id },
+    });
+    if (!chat) {
+      return res.status(404).json({ message: "Chat not found" });
+    }
     const messages = await Message.findAll({
       where: { chat_id: chatId },
       order: [["timestamp", "ASC"]],
@@ -57,7 +65,15 @@ exports.getChatMessages = async (req, res) => {
 exports.sendMessage = async (req, res) => {
   try {
     const { chatId } = req.params;
-    const content = req.query.content;
+    const { content } = req.body;
+
+    // check ownership
+    const chat = await Chat.findOne({
+      where: { id: chatId, user_id: req.user.id },
+    });
+    if (!chat) {
+      return res.status(404).json({ message: "Chat not found" });
+    }
 
     // store user message in DB
     await Message.create({
@@ -70,6 +86,7 @@ exports.sendMessage = async (req, res) => {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
+    res.flushHeaders();
 
     let botReply = "";
     partialReplies[chatId] = "";
@@ -77,6 +94,10 @@ exports.sendMessage = async (req, res) => {
     // Create AbortController for this chat
     const controller = new AbortController();
     activeProcesses[chatId] = controller;
+
+    // Tell frontend "bot is typing..."
+    res.write(`event: typing\n`);
+    res.write(`data: ${JSON.stringify({ typing: true })}\n\n`);
 
     // call Groq API with streaming
     const stream = await groq.chat.completions.create(
@@ -88,10 +109,21 @@ exports.sendMessage = async (req, res) => {
       { signal: controller.signal } // pass abort signal
     );
 
+    let firstChunk = true;
+
     for await (const chunk of stream) {
       const token = chunk.choices[0]?.delta?.content || "";
+      if (!token) continue;
+
       botReply += token;
       partialReplies[chatId] = botReply;
+
+      if (firstChunk) {
+        res.write(`event: typing\n`);
+        res.write(`data: ${JSON.stringify({ typing: false })}\n\n`);
+        firstChunk = false;
+      }
+
       res.write(`event: message\n`);
       res.write(`data: ${JSON.stringify({ token })}\n\n`);
     }
@@ -111,6 +143,14 @@ exports.sendMessage = async (req, res) => {
     delete partialReplies[chatId];
   } catch (error) {
     console.error("Error in sendMessage:", error);
+    if (!res.headersSent) {
+      res.setHeader("Content-Type", "text/event-stream");
+      res.flushHeaders();
+    }
+
+    res.write(`event: typing\n`);
+    res.write(`data: ${JSON.stringify({ typing: false })}\n\n`); // stop dots on error
+
     res.write(`event: error\n`);
     res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
     res.end();
@@ -148,7 +188,9 @@ exports.updateChatTitle = async (req, res) => {
     const { chatId } = req.params;
     const { title } = req.body;
 
-    const chat = await Chat.findByPk(chatId);
+    const chat = await Chat.findOne({
+      where: { id: chatId, user_id: req.user.id }
+    });
     if (!chat) {
       return res.status(404).json({ message: "Chat not found" });
     }
@@ -168,7 +210,9 @@ exports.deleteChat = async (req, res) => {
   try {
     const { chatId } = req.params;
 
-    const chat = await Chat.findByPk(chatId);
+    const chat = await Chat.findOne({
+      where: { id: chatId, user_id: req.user.id },
+    });
     if (!chat) {
       return res.status(404).json({ message: "Chat not found" });
     }
