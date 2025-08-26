@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import Chat from './pages/Chat';
 import ProtectedRoute from './utils/ProtectedRoute';
 import GoogleCallback from './pages/GoogleCallback';
+import NotFound from './pages/NotFound';
 
 function App() {
   return (
@@ -42,8 +43,9 @@ function App() {
             </ProtectedRoute>
           }
         />
-        {/* Default redirect */}
-        <Route path="*" element={<Login />} />
+
+        {/* Catch-all 404 */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </Router>
     </>

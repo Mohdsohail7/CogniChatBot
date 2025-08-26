@@ -23,11 +23,16 @@ import {
 } from "../utils/api";
 import { getInitials } from "../utils/initialName";
 import TypingIndicator from "../components/TypingIndicator";
+import { useNavigate } from "react-router-dom";
 
-// dynamic menu
+
+
+export default function Chat() {
+  const navigate = useNavigate();
+  // dynamic menu
 const profileMenu = [
-  { label: "Settings", icon: Settings, onClick: () => alert("Open Settings") },
-  { label: "Help", icon: HelpCircle, onClick: () => alert("Help Section") },
+  { label: "Settings", icon: Settings, onClick: () => navigate("*") },
+  { label: "Help", icon: HelpCircle, onClick: () => navigate("*") },
   {
     label: "Logout",
     icon: LogOut,
@@ -39,7 +44,6 @@ const profileMenu = [
   },
 ];
 
-export default function Chat() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [chats, setChats] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
