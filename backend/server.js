@@ -5,7 +5,7 @@ const cors = require("cors");
 const { connectDB, sequelize } = require("./config/config");
 
 app.use(cors({
-    origin: process.env.FRONTEND_ORIGIN,
+    origin: "https://cogni-chat-bot.vercel.app",
     credentials: true
 }));
 app.use(express.json());
