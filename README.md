@@ -46,14 +46,14 @@ cd cognichatbot
 ```
 
 ## 2. Install dependencies
-# Install root (for concurrently)
+### Install root (for concurrently)
 npm install
 
-# Install backend
+### Install backend
 cd backend
 npm install
 
-# Install frontend
+### Install frontend
 cd ../frontend
 npm install
 
@@ -76,12 +76,14 @@ GROQ_API_KEY=""
 
 GOOGLE_CLIENT_ID=""
 GOOGLE_CLIENT_SECRET=""
-GOOGLE_CALLBACK_URL=""
 ```
 
 Frontend (frontend/.env)
 ```bash
-REACT_APP_BASE_URL=http://localhost:4000/api
+REACT_APP_BASE_URL="http://localhost:4000/api"
+REACT_APP_GOOGLE_CLIENT_ID=""
+REACT_APP_SUPABASE_URL=""
+REACT_APP_SUPABASE_PUBLIC_KEY=""
 ```
 
 ## 🚀 Usage
@@ -97,17 +99,17 @@ Rename, share, or delete chats from the sidebar.
 ## 📸 Screenshots
 
 ### 🔐 Login Page and Registration
-![Login Page](./screenshots/login.png)
-![Registration Page](./screenshots/registration.png)
+![Login Page](./screenshots/login.PNG)
+![Registration Page](./screenshots/registration.PNG)
 
 ### 💬 Chat Interface
-![Chat Interface](./screenshots/chat.png)
+![Chat Interface](./screenshots/chat.PNG)
 
 ### 📂 Sidebar & Chat Management
-![Sidebar](./screenshots/sidebar.png)
+![Sidebar](./screenshots/sidebar.PNG)
 
 ### 🚫 404 Page
-![404 Page](./screenshots/404.png)
+![404 Page](./screenshots/404.PNG)
 
 🤝 Contributing If you want to contribute or add new features, feel free to submit a pull request! 😊
 
