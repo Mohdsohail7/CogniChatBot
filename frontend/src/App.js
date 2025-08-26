@@ -43,6 +43,7 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="/" element={<Login />} />
 
         {/* Catch-all 404 */}
         <Route path="*" element={<NotFound />} />
