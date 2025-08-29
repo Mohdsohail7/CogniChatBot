@@ -21,6 +21,7 @@ import {
   stopStreaming,
   updateChatTitle,
 } from "../utils/api";
+import supabase from "../utils/supabaseClient";
 import { getInitials } from "../utils/initialName";
 import TypingIndicator from "../components/TypingIndicator";
 import { useNavigate } from "react-router-dom";
@@ -38,7 +39,9 @@ const profileMenu = [
     icon: LogOut,
     onClick: () => {
       localStorage.removeItem("token");
-      window.location.href = "/login";
+      localStorage.removeItem("user");
+      supabase.auth.signOut();
+      navigate("/login", { replace: true });
     },
     danger: true,
   },
@@ -65,12 +68,47 @@ const profileMenu = [
 
   // get user dynamically
   const [user, setUser] = useState(null);
+  // Session check
   useEffect(() => {
-    (async () => {
+    const checkSession = async () => {
+      const token = localStorage.getItem("token");
+
+      // Check supabase session + our backend token
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!token || !session) {
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      // Load user dynamically
       const me = await getMe();
-      if (me) setUser(me);
-    })();
-  }, []);
+      if (me) {
+        setUser(me);
+      } else {
+        navigate("/login", { replace: true });
+      }
+    };
+
+    checkSession();
+
+    // Prevent navigating back to login after successful login
+    window.history.pushState(null, "", window.location.href);
+    const handlePopState = () => {
+      if (!localStorage.getItem("token")) {
+        navigate("/login", { replace: true });
+      } else {
+        window.history.pushState(null, "", window.location.href);
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [navigate]);
 
   const activeChat = useMemo(
     () => chats.find((chat) => chat.id === activeChatId) || null,
