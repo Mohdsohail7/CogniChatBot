@@ -311,7 +311,7 @@ const profileMenu = [
           fixed md:static
           left-0 md:left-auto
           top-14 md:top-0
-          h-[calc(100vh-3.5rem)] md:h-full
+          h-[calc(100svh-3.5rem)] md:h-full
           w-64
           transform transition-transform duration-300
           ${
@@ -319,6 +319,7 @@ const profileMenu = [
           }
           z-30 md:z-20
           bg-gradient-to-br from-purple-600 via-pink-500 to-red-500 backdrop-blur-lg border-r border-white/20 p-4 flex flex-col
+          pb-[max(1rem,env(safe-area-inset-bottom))]
         `}
       >
         <div className="mb-4">
@@ -504,7 +505,7 @@ const profileMenu = [
       {/* Chat Area */}
       <div className="flex-1 flex flex-col">
         {/* Top Navbar (always on top) */}
-        <div className="h-14 sticky top-0 z-50 bg-white/10 backdrop-blur-md border-b border-white/20">
+        <div className="h-14 sticky top-0 z-50 bg-gradient-to-br from-purple-600 via-pink-500 to-red-500 border-b border-white/20">
           <div className="h-full flex items-center px-3">
             {/* Toggle on the left; switches Menu/X */}
             <button
