@@ -93,21 +93,6 @@ const profileMenu = [
     };
 
     checkSession();
-
-    // Prevent navigating back to login after successful login
-    window.history.pushState(null, "", window.location.href);
-    const handlePopState = () => {
-      if (!localStorage.getItem("token")) {
-        navigate("/login", { replace: true });
-      } else {
-        window.history.pushState(null, "", window.location.href);
-      }
-    };
-    window.addEventListener("popstate", handlePopState);
-
-    return () => {
-      window.removeEventListener("popstate", handlePopState);
-    };
   }, [navigate]);
 
   const activeChat = useMemo(
