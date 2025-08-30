@@ -65,36 +65,55 @@ const profileMenu = [
   const [editingChatId, setEditingChatId] = useState(null);
   const [tempTitle, setTempTitle] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
 
   // get user dynamically
   const [user, setUser] = useState(null);
   // Session check
   useEffect(() => {
     const checkSession = async () => {
-      const token = localStorage.getItem("token");
+      try {
+        const token = localStorage.getItem("token");
+        const { data: { session } } = await supabase.auth.getSession();
 
-      // Check supabase session + our backend token
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+        if (!token && !session) {
+          navigate("/login", { replace: true });
+          return;
+        }
 
-      if (!token || !session) {
+        if (token) {
+          try {
+            const me = await getMe();
+            if (me) {
+              setUser(me);
+              setAuthLoading(false);
+              return;
+            }
+          } catch (err) {
+            console.error("Backend token invalid:", err);
+            localStorage.removeItem("token");
+          }
+        }
+
+        if (session?.user) {
+          setUser({
+            id: session.user.id,
+            name: session.user.user_metadata?.full_name || session.user.email,
+            email: session.user.email,
+          });
+          setAuthLoading(false);
+          return;
+        }
+
         navigate("/login", { replace: true });
-        return;
-      }
-
-      // Load user dynamically
-      const me = await getMe();
-      if (me) {
-        setUser(me);
-      } else {
-        navigate("/login", { replace: true });
+      } finally {
+        setAuthLoading(false);
       }
     };
 
     checkSession();
 
-    // Prevent navigating back to login after successful login
+    // Prevent navigating back to chat after logout
     window.history.pushState(null, "", window.location.href);
     const handlePopState = () => {
       if (!localStorage.getItem("token")) {
