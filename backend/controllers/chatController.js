@@ -2,6 +2,11 @@ const { Chat, Message } = require("../models");
 const Groq = require("groq-sdk");
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+// load model list from env
+const MODELS = [
+  process.env.GROQ_MODEL || "llama-3.1-8b-instant",
+  ...(process.env.GROQ_MODEL_FALLBACKS?.split(",") || []),
+];
 
 // Track active Ollama processes for stop functionality
 const activeProcesses = {};
@@ -100,15 +105,34 @@ exports.sendMessage = async (req, res) => {
     res.write(`event: typing\n`);
     res.write(`data: ${JSON.stringify({ typing: true })}\n\n`);
 
-    // call Groq API with streaming
-    const stream = await groq.chat.completions.create(
-      {
-        model: "llama3-8b-8192", // you can also use "mixtral-8x7b-32768" or "gemma-7b-it"
-        messages: [{ role: "user", content }],
-        stream: true,
-      },
-      { signal: controller.signal } // pass abort signal
-    );
+    let stream = null;
+    let usedModel = null;
+
+    // try models in order
+    for (const model of MODELS) {
+      try {
+        console.log(`Trying Groq model: ${model}`);
+
+        stream = await groq.chat.completions.create(
+          {
+            model,
+            messages: [{ role: "user", content }],
+            stream: true,
+          },
+          { signal: controller.signal }
+        );
+
+        usedModel = model;
+        console.log(`Using model: ${model}`);
+        break;
+      } catch (err) {
+        console.error(`Model ${model} failed: ${err.message}`);
+      }
+    }
+
+    if (!stream) {
+      throw new Error("All Groq models failed.");
+    }
 
     let firstChunk = true;
 

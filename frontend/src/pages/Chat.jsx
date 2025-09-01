@@ -66,6 +66,7 @@ const profileMenu = [
   const [tempTitle, setTempTitle] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
+  const [footer, setFooter] = useState("");
 
   // get user dynamically
   const [user, setUser] = useState(null);
@@ -251,6 +252,7 @@ const profileMenu = [
           });
         },
         onTyping: (isTyping) => setIsTyping(isTyping),
+        onModel: (model) => setFooter(`Powered by ${model}`) // Display in UI footer
       });
     } catch (err) {
       if (err.name !== "AbortError") {
@@ -608,6 +610,12 @@ const profileMenu = [
             </button>
           )}
         </div>
+        {/* Footer */}
+        {footer && (
+          <div className="text-center text-xs text-gray-200 py-2 bg-gradient-to-br from-purple-600 via-pink-500 to-red-500">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );

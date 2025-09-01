@@ -18,7 +18,7 @@ export async function getChatMessages(chatId) {
     return data;
 }
 
-export const sendMessageStream = async ({ chatId, content, signal, onToken, onTyping }) => {
+export const sendMessageStream = async ({ chatId, content, signal, onToken, onTyping,onModel }) => {
   return new Promise(async (resolve, reject) => {
     try {
       const url = `${process.env.REACT_APP_BASE_URL || "http://localhost:4000/api"}/chats/${chatId}/messages`;
@@ -69,6 +69,12 @@ export const sendMessageStream = async ({ chatId, content, signal, onToken, onTy
             else if (eventName === "typing") {
               const data = JSON.parse(dataStr);
               onTyping?.(data.typing);
+            }
+            else if (eventName === "model") {
+              const data = JSON.parse(dataStr);
+              if (data.model) {
+                onModel?.(data.model); // <-- NEW callback
+              }
             }
             else if (eventName === "done") {
               onTyping?.(false);
