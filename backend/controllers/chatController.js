@@ -63,12 +63,15 @@ exports.getChatMessages = async (req, res) => {
 
 // send message using Groq API (streaming)
 exports.sendMessage = async (req, res) => {
-  try {
     const { chatId } = req.params;
     const { content } = req.body;
 
+    let controller;
+    let botReply = "";
+
     // check ownership
-    const chat = await Chat.findOne({
+    try {
+      const chat = await Chat.findOne({
       where: { id: chatId, user_id: req.user.id },
     });
     if (!chat) {
@@ -88,11 +91,9 @@ exports.sendMessage = async (req, res) => {
     res.setHeader("Connection", "keep-alive");
     res.flushHeaders();
 
-    let botReply = "";
+    // tracking structures
     partialReplies[chatId] = "";
-
-    // Create AbortController for this chat
-    const controller = new AbortController();
+    controller = new AbortController();
     activeProcesses[chatId] = controller;
 
     // Tell frontend "bot is typing..."
@@ -135,26 +136,35 @@ exports.sendMessage = async (req, res) => {
       content: botReply,
     });
 
+    // tell frontend we're done
     res.write(`event: done\n`);
     res.write(`data: [DONE]\n\n`);
     res.end();
 
+    } catch (error) {
+      console.error("Error in sendMessage:", error);
+
+      // only send error if connection still open
+      if (!res.writableEnded) {
+        if (!res.headersSent) {
+          res.setHeader("Content-Type", "text/event-stream");
+          res.flushHeaders();
+        }
+
+        res.write(`event: typing\n`);
+        res.write(`data: ${JSON.stringify({ typing: false })}\n\n`);
+
+        res.write(`event: error\n`);
+        res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+        res.end();
+      }
+
+    } finally {
+    // always clean up
     delete activeProcesses[chatId];
     delete partialReplies[chatId];
-  } catch (error) {
-    console.error("Error in sendMessage:", error);
-    if (!res.headersSent) {
-      res.setHeader("Content-Type", "text/event-stream");
-      res.flushHeaders();
-    }
-
-    res.write(`event: typing\n`);
-    res.write(`data: ${JSON.stringify({ typing: false })}\n\n`); // stop dots on error
-
-    res.write(`event: error\n`);
-    res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
-    res.end();
   }
+    
 };
 
 // Stop an ongoing response

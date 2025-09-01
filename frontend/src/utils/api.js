@@ -41,6 +41,7 @@ export const sendMessageStream = async ({ chatId, content, signal, onToken, onTy
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder("utf-8");
+      let botHasOutput = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -53,26 +54,36 @@ export const sendMessageStream = async ({ chatId, content, signal, onToken, onTy
           if (!evt.trim()) continue;
 
           // Parse SSE lines
-          const [eventLine, dataLine] = evt.split("\n");
-          const eventName = eventLine.replace("event: ", "").trim();
-          const dataStr = dataLine.replace("data: ", "").trim();
+          const lines = evt.split("\n");
+          const eventName = lines[0].replace("event: ", "").trim();
+          const dataStr = lines.slice(1).map(l => l.replace("data: ", "").trim()).join("\n");
 
           try {
             if (eventName === "message") {
               const data = JSON.parse(dataStr);
-              if (data.token) onToken?.(data.token);
+              if (data.token) {
+                botHasOutput = true;
+                onToken?.(data.token);
+              }
             }
             else if (eventName === "typing") {
               const data = JSON.parse(dataStr);
               onTyping?.(data.typing);
             }
             else if (eventName === "done") {
+              onTyping?.(false);
               resolve();
               return;
             }
             else if (eventName === "error") {
               const data = JSON.parse(dataStr);
-              reject(new Error(data.error || "Streaming error"));
+              onTyping?.(false);
+              if (botHasOutput) {
+                console.warn("Stream ended with error but partial reply exists:", data.error);
+                resolve();
+              } else {
+                reject(new Error(data.error || "Streaming error"));
+              }
               return;
             }
           } catch (err) {
@@ -80,9 +91,10 @@ export const sendMessageStream = async ({ chatId, content, signal, onToken, onTy
           }
         }
       }
-
+      onTyping?.(false);
       resolve();
     } catch (err) {
+      onTyping?.(false);
       reject(err);
     }
   });
