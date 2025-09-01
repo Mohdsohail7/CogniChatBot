@@ -123,6 +123,9 @@ exports.sendMessage = async (req, res) => {
         );
 
         usedModel = model;
+        res.write(`event: model\n`);
+        res.write(`data: ${JSON.stringify({ model })}\n\n`);
+
         console.log(`Using model: ${model}`);
         break;
       } catch (err) {
